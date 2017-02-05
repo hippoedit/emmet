@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<!DOCTYPE package-info SYSTEM "http://www.hippoedit.com/xml/package-info">
+<package-info xmlns="http://www.hippoedit.com/xml/package-info" xmlns:smf="http://www.hippoedit.com/">
+	<id>A7016AC5-AF98-48A9-B486-8104C82CAA04</id>
+	<name>Emmet</name>	
+	<version>1.1.0.7</version>
+	<description>HippoEDIT wrapper for Emmet (formerly Zen Coding)</description>
+	<author>Sergey Chikuyonok</author>
+	<email>supportbox@hippoedit.com</email>
+	<homepage>http://wiki.hippoedit.com/plugins/emmet</homepage>
+	<memo></memo>
+
+	<!-- Common Install actions -->
+	<install>
+		<!-- Read me -->
+		<readme type="inline">This will install Emmet plugin for HippoEDIT.</readme>
+
+		<require-dir name="core" destination="%{plugins}%/emmet/core" />
+
+		<require-file name="editor.js" destination="%{plugins}%/emmet/editor.js" />
+		<require-file name="file.js" destination="%{plugins}%/emmet/file.js" />
+		<require-file name="emmet.hejs" destination="%{plugins}%/emmet/emmet.hejs" />
+		<require-file name="snippets.json" destination="%{plugins}%/emmet/snippets.json" />
+
+		<!-- Registration -->
+		<install-plugin path="%{plugins}%/emmet/emmet.hejs"/>
+	</install>
+
+	<!-- Uninstall actions -->
+	<uninstall architecture="*" unicode="*" pdb="*">
+		<!-- Read me -->
+		<readme type="inline">This will uninstall Emmet plugin for HippoEDIT.</readme>
+
+		<!-- Un-Registration -->
+		<uninstall-plugin id="A7016AC5-AF98-48A9-B486-8104C82CAA04"/>
+
+		<!-- Source files -->
+		<remove-dir name="%{plugins}%/emmet" />
+	</uninstall>
+
+</package-info>

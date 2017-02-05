@@ -1,0 +1,266 @@
+#import "core\underscore.js"
+#import "core\core.js"
+
+#import "core\parsers\abbreviationParser.js"
+#import "core\parsers\processors\*.js"
+#import "core\parsers\cssParser.js"
+#import "core\parsers\xmlParser.js"
+
+#import "core\utils.js"	
+#import "core\range.js"	
+#import "core\handlerList.js"	
+#import "core\tokenIterator.js"	
+#import "core\stringStream.js"	
+#import "core\resources.js"	
+#import "core\actions.js"	
+#import "core\profile.js"	
+#import "core\editorUtils.js"	
+#import "core\actionUtils.js"	
+#import "core\abbreviationUtils.js"	
+#import "core\base64.js"	
+#import "core\htmlMatcher.js"	
+#import "core\tabStops.js"	
+#import "core\preferences.js"	
+#import "core\elements.js"	
+	
+#import "core\filters.js"
+#import "core\filters\*.js"
+
+#import "core\parsers\editTree\editTree.js"
+#import "core\parsers\editTree\cssEditTree.js"
+#import "core\parsers\editTree\xmlEditTree.js"
+
+#import "core\actions\*.js"
+#import "core\resolvers\*.js"
+#import "core\generators\*.js"		
+#import "core\loaders\*.js"
+
+#import "customSnippets.js" // if exist will be loaded
+
+#import "file.js"
+#import "editor.js"
+
+// load snippets
+var file = emmet.require('file');
+emmet.require('bootstrap').loadSystemSnippets(file.read( file.locateFile(ScriptName, 'snippets.json')));
+
+function readStorage(key, def_val)
+{
+ 	var vStorage = GetStorage(eStorageTypeWorkspace, "", eAccessTypeReadWrite);
+	if ( vStorage != undefined )
+	{
+		var val1 = vStorage.read(key);
+		if (val1 != undefined) return val1;
+	}
+	return def_val;
+}
+
+function onOptionsInit()
+{
+	// read "setting" from persistent storage
+	this.Parameters.lang   	 = readStorage("lang", editorProxy.getResourceManager().getVariable("lang"));
+	this.Parameters.locale 	 = readStorage("locale", editorProxy.getResourceManager().getVariable("locale"));
+	this.Parameters.charset  = readStorage("charset", editorProxy.getResourceManager().getVariable("charset"));
+	this.Parameters.profile  = readStorage("profile", editorProxy.getResourceManager().getVariable("profile") || 'xhtml');
+	this.Parameters.debug 	 = readStorage("debug", false);
+
+	this.Layout =
+	'@<dialog> \
+		<groupbox title="General"> \
+			<group> \
+			    <paragraph text="Language:" align="left"/> \
+			    <edit id="lang" minwidth="15" align="right"/> \
+			</group> \
+			<group> \
+			    <paragraph text="Locale:" align="left"/> \
+			    <edit id="locale" minwidth="15" align="right"/> \
+			</group> \
+			<group> \
+			    <paragraph text="Charset:" align="left"/> \
+			    <edit id="charset" minwidth="15" align="right"/> \
+			</group> \
+			<spacer/> \
+			<group> \
+				<paragraph text="Profile:" align="left"/> \
+				<combobox id="profile" minwidth="15" align="right"> \
+					 <item text="html"/> \
+					 <item text="xhtml"/> \
+					 <item text="xml"/> \
+					 <item text="line"/> \
+				</combobox> \
+			</group> \
+		</groupbox> \
+		<groupbox title="Advanced"> \
+	    	<checkbox title="Debug mode" id="debug"/> \
+		</groupbox> \
+	</dialog>@';
+}
+
+function onOptionsApply()
+{
+	// store new "setting" value in persistent storage
+	var vStorage = GetStorage(eStorageTypeWorkspace, "", eAccessTypeWrite);
+ 	vStorage.lang = this.Parameters.lang;
+ 	vStorage.charset = this.Parameters.charset;
+ 	vStorage.profile = this.Parameters.profile;
+	vStorage.debug = this.Parameters.debug;
+}
+
+Application.RegisterOptionsPage("Emmet", onOptionsInit, onOptionsApply);
+
+// add optional script information, nice when you want to see something meaningful in plug-in description in options dialog
+Application.AddScriptInfo("A7016AC5-AF98-48A9-B486-8104C82CAA04", "Emmet", "1.1.0.7", "HippoEDIT wrapper for Emmet (formerly Zen Coding)", "Sergey Chikuyonok", "supportbox@hippoedit.com", "http://wiki.hippoedit.com/plugins/emmet");
+
+function CurrentSyntax() 
+{
+	var style_range = ActiveDocument.GetStyleFromPos(ActiveView.Position);
+	return style_range.Style.Syntax;
+}
+
+function ZenExecute(name) {
+	editorProxy.setupContext(ActiveView, readStorage("debug", false), readStorage("profile", editorProxy.getResourceManager().getVariable("profile") || 'xhtml'));
+	return emmet.require('actions').run(name, editorProxy);
+}
+
+function ZenEnabled() {
+	return ActiveDocument != null && ActiveDocument.ReadOnly != true && 
+	(CurrentSyntax().IsInheritedFrom("xml") || CurrentSyntax().IsInheritedFrom("css"));
+}
+
+function ZenEnabledHTML(name) {
+	return ActiveDocument != null && ActiveDocument.ReadOnly != true && CurrentSyntax().IsInheritedFrom("xml");
+}
+
+function ZenEnabledCSS(name) {
+	return ActiveDocument != null && ActiveDocument.ReadOnly != true && CurrentSyntax().IsInheritedFrom("css");
+}
+
+function ZenCommand(id, name, description, zen_command, image, vOnEnabled)
+{	
+	if ( description == "" ) description = name;
+	if (typeof(vOnEnabled) === 'undefined') vOnEnabled = ZenEnabled;
+	var vCommand = new Command("Emmet." + id, name, "Emmet: " + description, -1, "ZenExecute('" + zen_command + "');");
+	vCommand.onEnabled = vOnEnabled; 
+	Application.RegisterCommand(vCommand);
+	return vCommand; 
+} 
+
+var vzcExpandAbbreviation 		= ZenCommand("ExpandAbbreviation", "Expand Abbreviation", "", "expand_abbreviation", -1);
+var vzcBalanceOutward 	  		= ZenCommand("BalanceOutward", "Balance Tag", "", "match_pair_outward", -1, ZenEnabledHTML);
+var vzcBalanceInward 	  		= ZenCommand("BalanceInward", "Balance Tag Inward", "", "match_pair_inward", -1, ZenEnabledHTML);
+var vzcWrapWithAbbreviation 	= ZenCommand("WrapWithAbbreviation", "Wrap with Abbreviation", "", "wrap_with_abbreviation", -1);
+var vzcNextEditPoint 			= ZenCommand("NextEditPoint", "Next Edit Point", "", "next_edit_point", -1);
+var vzcPrevEditPoint 			= ZenCommand("PrevEditPoint", "Previous Edit Point", "", "prev_edit_point", -1);
+var vzcMergeLines 				= ZenCommand("MergeLines", "Merge Lines", "", "merge_lines", -1);
+var vzcRemoveTag 				= ZenCommand("RemoveTag", "Remove Tag", "", "remove_tag", -1, ZenEnabledHTML);
+var vzcSplitJoinTag				= ZenCommand("SplitJoinTag", "Split/Join Tag", "", "split_join_tag", -1, ZenEnabledHTML);
+var vzcToggleComment			= ZenCommand("ToggleComment", "Toggle Comment", "", "toggle_comment", -1);
+var vzcEvaluateMathExpression	= ZenCommand("EvaluateMathExpression", "Evaluate Math Expression", "", "evaluate_math_expression", -1);
+var vzcIncrementNumberBy1		= ZenCommand("IncrementNumberBy1", "Increment Number By 1", "", "increment_number_by_1", -1);
+var vzcDecrementNumberBy1		= ZenCommand("DecrementNumberBy1", "Decrement Number By 1", "", "decrement_number_by_1", -1);
+var vzcIncrementNumberBy01		= ZenCommand("IncrementNumberBy01", "Increment Number By 0.1", "", "increment_number_by_01", -1);
+var vzcDecrementNumberBy01		= ZenCommand("DecrementNumberBy01", "Decrement Number By 0.1", "", "decrement_number_by_01", -1);
+var vzcIncrementNumberBy10		= ZenCommand("IncrementNumberBy10", "Increment Number By 10", "", "increment_number_by_10", -1);
+var vzcDecrementNumberBy10		= ZenCommand("DecrementNumberBy10", "Decrement Number By 10", "", "decrement_number_by_10", -1);
+var vzcSelectNextItem			= ZenCommand("SelectNextItem", "Select Next Item", "", "select_next_item", -1);
+var vzcSelectPrevItem			= ZenCommand("SelectPrevItem", "Select Previous Item", "", "select_previous_item", -1);
+var vzcReflectCssValue			= ZenCommand("ReflectCSSValue", "Reflect CSS Value", "", "reflect_css_value", -1, ZenEnabledCSS);
+var vzcUpdateImageSize			= ZenCommand("UpdateImageSize", "Update/Add image size", "", "update_image_size", -1);
+var vzcEncodeDecodeBase64		= ZenCommand("EncodeDecodeBase64", "Base64 Encode/Decode of data", "", "encode_decode_data_url", -1);
+var vzcGoToMatchingPair			= ZenCommand("GoToMatchingPair", "Go to Matching Pair", "", "matching_pair", -1);
+var vzcSelectLine				= ZenCommand("SelectLine", "Select Current Line", "", "select_line", -1);
+var vzcExpandAbbrWithTab		= ZenCommand("ExpandAbbreviationWithTab", "Expand Abbreviation, inserting Tab if not found", "", "expand_abbreviation_with_tab", -1);
+var vzcInsertFormattedNewline	= ZenCommand("InsertFormattedNewline", "Insert formatted new line", "", "insert_formatted_line_break", -1);
+
+////////////////////////////////////////////////////////////////////////
+// Create new main Menu for Zen Coding
+Application.onInitMainMenu = function (bUpdate){
+	if ( bUpdate == false )
+	{
+		var menuZen = this.InsertSubMenu(this.ItemCount - 4, "Emmet");
+		if ( menuZen != null )
+		{
+			var menuHTML = menuZen.AddSubMenu("HTML");
+			menuHTML.AddItem("", vzcBalanceOutward);
+			menuHTML.AddItem("", vzcBalanceInward);
+			menuHTML.AddItem("");
+			menuHTML.AddItem("", vzcGoToMatchingPair);
+			menuHTML.AddItem("");
+			menuHTML.AddItem("", vzcWrapWithAbbreviation);
+			menuHTML.AddItem("", vzcRemoveTag);
+			menuHTML.AddItem("", vzcSplitJoinTag);
+			
+			var menuCSS = menuZen.AddSubMenu("CSS");
+			menuCSS.AddItem("", vzcReflectCssValue);
+
+			var menuNumbers = menuZen.AddSubMenu("Numbers");
+			menuNumbers.AddItem("", vzcIncrementNumberBy01);
+			menuNumbers.AddItem("", vzcDecrementNumberBy01);
+			menuNumbers.AddItem("");
+			menuNumbers.AddItem("", vzcIncrementNumberBy1);
+			menuNumbers.AddItem("", vzcDecrementNumberBy1);
+			menuNumbers.AddItem("");
+			menuNumbers.AddItem("", vzcIncrementNumberBy10);
+			menuNumbers.AddItem("", vzcDecrementNumberBy10);
+			menuNumbers.AddItem("");
+			menuNumbers.AddItem("", vzcEvaluateMathExpression);
+
+			menuZen.AddItem("");
+			menuZen.AddItem("", vzcExpandAbbreviation);
+			menuZen.AddItem("");
+			menuZen.AddItem("", vzcNextEditPoint);
+			menuZen.AddItem("", vzcPrevEditPoint);
+			menuZen.AddItem("");
+			menuZen.AddItem("", vzcSelectNextItem);
+			menuZen.AddItem("", vzcSelectPrevItem);
+			menuZen.AddItem("");
+			menuZen.AddItem("", vzcMergeLines);
+			menuZen.AddItem("", vzcToggleComment);
+			menuZen.AddItem("", vzcSelectLine);
+			menuZen.AddItem("", vzcInsertFormattedNewline);
+			menuZen.AddItem("");
+			menuZen.AddItem("", vzcUpdateImageSize);
+			menuZen.AddItem("", vzcEncodeDecodeBase64);
+			menuZen.AddItem("");
+			menuZen.AddItem("", new Command("Emmet.Documentation", "Documentation", "Emmet: Navigate to Documentation" , -1, "OpenURL('http://docs.emmet.io/');"));
+			menuZen.AddItem("", new Command("Emmet.CheatSheet", "Cheat Sheet", "Emmet: Navigate to Cheat Sheet" , -1, "OpenURL('http://docs.emmet.io/cheat-sheet/');"));
+		}
+	}
+} 
+
+function showDescription()
+{
+	return this.description;
+}
+
+function onCodeTemplate(view, range)
+{
+	view.document.BeginUndoGroup();
+	if (range.IsEmpty) view.Position = view.document.InsertText(range.Start, this.key, AddUndoActionType("Expand Emmet template"));
+	ZenExecute("expand_abbreviation");
+	view.document.FlushUndoGroup();
+}
+
+function registerTemplates(syntax, resource, target_syntax)
+{
+	if (!target_syntax) target_syntax = syntax; 
+	var oSyntax = Settings.GetSyntax(target_syntax);
+	if ( oSyntax !== null && oSyntax.Loaded)
+	{
+		var aSnippets = editorProxy.getResourceManager().findItem(syntax, resource);
+		for (var key in aSnippets)
+		{
+			var vCodeTemplate = new CodeTemplate(onCodeTemplate, null, showDescription, null);
+			vCodeTemplate.key = key;
+			vCodeTemplate.description = editorProxy.getResourceManager().findItem(syntax, resource)[key];
+			RegisterCodeTemplate(key, vCodeTemplate, target_syntax);
+		}		
+	}
+}
+
+registerTemplates('html', 'snippets');
+registerTemplates('html', 'abbreviations');	
+registerTemplates('html', 'snippets', 'html5');
+registerTemplates('html', 'abbreviations', 'html5');	
+registerTemplates('css',  'snippets');
+registerTemplates('xslt', 'abbreviations');
